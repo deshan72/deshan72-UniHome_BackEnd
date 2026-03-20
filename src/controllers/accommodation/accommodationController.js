@@ -1,5 +1,6 @@
 import Accommodation from '../../models/accommodation/Accommodation.js';
 
+
 const SLIIT_LAT = 6.9147;
 const SLIIT_LNG = 79.9729;
 
