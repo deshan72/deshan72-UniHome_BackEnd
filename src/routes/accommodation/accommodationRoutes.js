@@ -12,7 +12,7 @@ import {
   toggleDeactivate,
   updateRoomAvailability,
   approveAccommodation,
-} from '../controllers/accommodationController.js';
+} from '../../controllers/accommodation/accommodationController.js';
 
 
 const router = express.Router();
