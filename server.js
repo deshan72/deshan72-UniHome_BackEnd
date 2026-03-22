@@ -1,16 +1,38 @@
-// server.js
+import express from "express";
+import cors from "cors";
 import dotenv from "dotenv";
-import connectDB from "./src/config/mongodb.js";
-import app from "./src/index.js";  // Import 'app' from index.js
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config();  // Load environment variables from .env
+import connectDB from "./src/config/mongoDb.js";
+import apiRoutes from "./src/index.js";
+import repairRequestRoutes from "./src/routes/maintenance/repairRequestRoutes.js";
+import maintenanceProviderRoutes from "./src/routes/maintenance/maintenanceProviderRoutes.js";
 
-// Connect to the database
-connectDB();
+dotenv.config();
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Serve uploaded images
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+app.use("/api", apiRoutes);
 
 const PORT = process.env.PORT || 3000;
 
-// Start the server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+connectDB()
+  .then(() => {
+    app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+  })
+  .catch((err) => {
+    console.error("DB connection failed:", err);
+    process.exit(1);
+  });
+  // Maintenance module
+  app.use("/api/maintenance/repair-requests", repairRequestRoutes);
+  app.use("/api/maintenance/providers", maintenanceProviderRoutes);
+
