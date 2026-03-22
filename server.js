@@ -23,4 +23,10 @@ app.listen(PORT, () => {
 });
 
 // ==================== ROUTES ====================
+// app.use('/api/auth', authRoutes);
 app.use('/api/accommodations', accommodationRoutes);
+// app.use('/api/bookings', bookingRoutes);
+// app.use('/api/reviews', reviewRoutes);
+// app.use('/api/messages', messageRoutes);
+// app.use('/api/users', userRoutes);
+// app.use('/api/upload', uploadRoutes);

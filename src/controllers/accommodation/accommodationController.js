@@ -1,5 +1,6 @@
+import mongoose from "mongoose";
 import Accommodation from '../../models/accommodation/Accommodation.js';
-
+import ResponseHandler from '../../views/accommodation/responseHandler.js';
 
 const SLIIT_LAT = 6.9147;
 const SLIIT_LNG = 79.9729;
@@ -17,35 +18,84 @@ const calcDistance = (lat1, lng1, lat2, lng2) => {
 
 // ──────────────────────────────────────────────
 // @desc    Create new listing (Owner)
-// @route   POST /api/accommodations
+// @route   POST /api/accommodations/create
 // @access  Private (Owner)
 // ──────────────────────────────────────────────
-export const createAccommodation = async (req, res, next) => {
+
+
+// export const createAccommodation = async (req, res, next) => {
+//   try {
+//     // req.body.owner = req.user.id;
+
+//     // PENDING - Needs Admin Approval
+//     req.body.status = 'Pending';
+
+//     if (req.body.pricing?.monthlyRent) {
+//       req.body.price = req.body.pricing.monthlyRent;
+//     }
+
+//     if (req.body.roomTypes) {
+//       req.body.roomTypes = req.body.roomTypes.map((room) => ({
+//         ...room,
+//         availableRooms: room.availableRooms ?? room.totalRooms,
+//       }));
+//     }
+
+//     const accommodation = await Accommodation.create(req.body);
+
+//     return ResponseHandler.created(res, {
+//       message: 'Listing created! Pending admin approval.',
+//       data: accommodation,
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
+export const createAccommodation = async (req, res) => {
   try {
-    req.body.owner = req.user.id;
+    // ❌ old (auth needed)
+    // const ownerId = req.user.id;
 
-    // PENDING - Needs Admin Approval
-    req.body.status = 'Pending';
+    // ✅ temporary sample owner id (until auth is implemented)
+    const ownerId = 1; // DB එකේ තියෙන valid user id එකක් දාන්න
 
-    if (req.body.pricing?.monthlyRent) {
-      req.body.price = req.body.pricing.monthlyRent;
+    const {
+      title,
+      description,
+      address,
+      city,
+      pricePerMonth,
+      roomType,
+      availableFrom
+    } = req.body;
+
+    // basic validation
+    if (!title || !address || !city || !pricePerMonth) {
+      return res.status(400).json({
+        message: "title, address, city, pricePerMonth are required",
+      });
     }
 
-    if (req.body.roomTypes) {
-      req.body.roomTypes = req.body.roomTypes.map((room) => ({
-        ...room,
-        availableRooms: room.availableRooms ?? room.totalRooms,
-      }));
-    }
+    // model/service call (ඔයාගේ existing logic එකට match කරගන්න)
+    const newAccommodation = await Accommodation.create({
+      ownerId,
+      title,
+      description,
+      address,
+      city,
+      pricePerMonth,
+      roomType,
+      availableFrom,
+    });
 
-    const accommodation = await Accommodation.create(req.body);
-
-    return ResponseHandler.created(res, {
-      message: 'Listing created! Pending admin approval.',
-      data: accommodation,
+    return res.status(201).json({
+      message: "Accommodation created successfully",
+      data: newAccommodation,
     });
   } catch (error) {
-    next(error);
+    console.error("createAccommodation error:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -146,19 +196,50 @@ export const getAccommodations = async (req, res, next) => {
 // @route   GET /api/accommodations/:id
 // @access  Public
 // ──────────────────────────────────────────────
+// export const getAccommodation = async (req, res, next) => {
+//   try {
+//     const accommodation = await Accommodation.findById(req.params.id)
+//       .populate('owner', 'name email phone isVerified avatar');
+
+//     if (!accommodation) {
+//       return ResponseHandler.notFound(res, 'Accommodation not found');
+//     }
+
+//     const data = accommodation.toObject();
+//     data.distanceToSLIIT = parseFloat(
+//       calcDistance(data.location.lat, data.location.lng, SLIIT_LAT, SLIIT_LNG).toFixed(2)
+//     );
+
+//     return ResponseHandler.success(res, { data });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const getAccommodation = async (req, res, next) => {
   try {
-    const accommodation = await Accommodation.findById(req.params.id)
-      .populate('owner', 'name email phone isVerified avatar');
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return ResponseHandler.badRequest(res, "Invalid accommodation id");
+    }
+
+    const accommodation = await Accommodation.findById(id)
+      .populate("owner", "name email phone isVerified avatar");
 
     if (!accommodation) {
-      return ResponseHandler.notFound(res, 'Accommodation not found');
+      return ResponseHandler.notFound(res, "Accommodation not found");
     }
 
     const data = accommodation.toObject();
-    data.distanceToSLIIT = parseFloat(
-      calcDistance(data.location.lat, data.location.lng, SLIIT_LAT, SLIIT_LNG).toFixed(2)
-    );
+
+    if (data.location?.lat != null && data.location?.lng != null) {
+      data.distanceToSLIIT = parseFloat(
+        calcDistance(data.location.lat, data.location.lng, SLIIT_LAT, SLIIT_LNG).toFixed(2)
+      );
+    } else {
+      data.distanceToSLIIT = null;
+    }
 
     return ResponseHandler.success(res, { data });
   } catch (error) {
@@ -171,30 +252,274 @@ export const getAccommodation = async (req, res, next) => {
 // @route   GET /api/accommodations/my/listings
 // @access  Private (Owner)
 // ──────────────────────────────────────────────
+// export const getMyListings = async (req, res, next) => {
+//   try {
+//     const { status, page = 1, limit = 10 } = req.query;
+//     const filter = { owner: req.user.id };
+//     if (status) filter.status = status;
+
+//     const skip = (parseInt(page) - 1) * parseInt(limit);
+//     const total = await Accommodation.countDocuments(filter);
+//     const totalPages = Math.ceil(total / parseInt(limit));
+
+//     const listings = await Accommodation.find(filter)
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(parseInt(limit));
+
+//     return res.json({
+//       success: true,
+//       data: listings,
+//       meta: { total, totalPages, page: parseInt(page), limit: parseInt(limit) },
+//     });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+
 export const getMyListings = async (req, res, next) => {
   try {
     const { status, page = 1, limit = 10 } = req.query;
-    const filter = { owner: req.user.id };
+
+    // temp owner id (must be valid Mongo ObjectId string)
+    const sampleOwnerId = "69be914cd46f87a2a260d7d0";
+
+    if (!mongoose.Types.ObjectId.isValid(sampleOwnerId)) {
+      return res.status(400).json({ message: "Invalid owner id" });
+    }
+
+    const filter = { owner: new mongoose.Types.ObjectId(sampleOwnerId) };
     if (status) filter.status = status;
 
-    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const skip = (pageNum - 1) * limitNum;
+
     const total = await Accommodation.countDocuments(filter);
-    const totalPages = Math.ceil(total / parseInt(limit));
+    const totalPages = Math.ceil(total / limitNum);
 
     const listings = await Accommodation.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(limitNum);
 
     return res.json({
       success: true,
       data: listings,
-      meta: { total, totalPages, page: parseInt(page), limit: parseInt(limit) },
+      meta: { total, totalPages, page: pageNum, limit: limitNum },
     });
   } catch (error) {
     next(error);
   }
 };
+
+// ──────────────────────────────────────────────
+// @desc    Update accommodation
+// @route   PUT /api/accommodations/:id
+// @access  Private (Owner)
+// ──────────────────────────────────────────────
+// export const updateAccommodation = async (req, res, next) => {
+//   try {
+//     let accommodation = await Accommodation.findById(req.params.id);
+//     if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
+//     if (accommodation.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+//       return ResponseHandler.forbidden(res, 'Not authorized');
+//     }
+
+//     if (req.body.pricing?.monthlyRent) req.body.price = req.body.pricing.monthlyRent;
+
+//     accommodation = await Accommodation.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+//     return ResponseHandler.success(res, { message: 'Updated!', data: accommodation });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+export const updateAccommodation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return ResponseHandler.badRequest(res, "Invalid accommodation id");
+    }
+
+    let accommodation = await Accommodation.findById(id);
+    if (!accommodation) {
+      return ResponseHandler.notFound(res, "Not found");
+    }
+
+    // ✅ Auth නැති temporary mode:
+    // req.user check remove කරලා owner check skip කරනවා
+    // (later auth හදද්දී මේ authorization block එක නැවත add කරන්න)
+
+    if (req.body.pricing?.monthlyRent) {
+      req.body.price = req.body.pricing.monthlyRent;
+    }
+
+    accommodation = await Accommodation.findByIdAndUpdate(id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+
+    return ResponseHandler.success(res, {
+      message: "Updated!",
+      data: accommodation,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+// ──────────────────────────────────────────────
+// @desc    Delete accommodation
+// @route   DELETE /api/accommodations/:id
+// @access  Private (Owner/Admin)
+// ──────────────────────────────────────────────
+// export const deleteAccommodation = async (req, res, next) => {
+//   try {
+//     const accommodation = await Accommodation.findById(req.params.id);
+//     if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
+//     if (accommodation.owner.toString() !== req.user.id && req.user.role !== 'admin') {
+//       return ResponseHandler.forbidden(res, 'Not authorized');
+//     }
+
+//     const activeBookings = await Booking.countDocuments({
+//       accommodation: req.params.id,
+//       status: { $in: ['Pending', 'Accepted', 'Active'] },
+//     });
+//     if (activeBookings > 0) {
+//       return ResponseHandler.error(res, { statusCode: 400, message: activeBookings + ' active booking(s) exist.' });
+//     }
+
+//     await accommodation.deleteOne();
+//     return ResponseHandler.success(res, { message: 'Deleted!' });
+//   } catch (error) {
+//     next(error);
+//   }
+// };
+export const deleteAccommodation = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return ResponseHandler.badRequest(res, "Invalid accommodation id");
+    }
+
+    const accommodation = await Accommodation.findById(id);
+    if (!accommodation) {
+      return ResponseHandler.notFound(res, "Not found");
+    }
+
+    // ✅ Auth නැති temporary mode:
+    // owner / admin authorization check removed
+    // (production එකට යනකොට req.user checks නැවත add කරන්න)
+
+    const activeBookings = await Booking.countDocuments({
+      accommodation: id,
+      status: { $in: ["Pending", "Accepted", "Active"] },
+    });
+
+    if (activeBookings > 0) {
+      return ResponseHandler.error(res, {
+        statusCode: 400,
+        message: `${activeBookings} active booking(s) exist.`,
+      });
+    }
+
+    await accommodation.deleteOne();
+    return ResponseHandler.success(res, { message: "Deleted!" });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+// ──────────────────────────────────────────────
+// Toggle Availability
+// ──────────────────────────────────────────────
+export const toggleAvailability = async (req, res, next) => {
+  try {
+    const accommodation = await Accommodation.findById(req.params.id);
+    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
+    if (accommodation.owner.toString() !== req.user.id) return ResponseHandler.forbidden(res, 'Not authorized');
+
+    accommodation.isAvailable = !accommodation.isAvailable;
+    await accommodation.save();
+    return ResponseHandler.success(res, {
+      message: accommodation.isAvailable ? 'Available' : 'Not Available',
+      data: { isAvailable: accommodation.isAvailable },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ──────────────────────────────────────────────
+// Toggle Deactivate
+// ──────────────────────────────────────────────
+export const toggleDeactivate = async (req, res, next) => {
+  try {
+    const accommodation = await Accommodation.findById(req.params.id);
+    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
+    if (accommodation.owner.toString() !== req.user.id) return ResponseHandler.forbidden(res, 'Not authorized');
+
+    accommodation.isDeactivated = !accommodation.isDeactivated;
+    await accommodation.save();
+    return ResponseHandler.success(res, {
+      message: accommodation.isDeactivated ? 'Hidden' : 'Visible',
+      data: { isDeactivated: accommodation.isDeactivated },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// ──────────────────────────────────────────────
+// Update Room Availability
+// ──────────────────────────────────────────────
+export const updateRoomAvailability = async (req, res, next) => {
+  try {
+    const { id, roomTypeId } = req.params;
+    const { availableRooms } = req.body;
+
+    const accommodation = await Accommodation.findById(id);
+    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
+    if (accommodation.owner.toString() !== req.user.id) return ResponseHandler.forbidden(res, 'Not authorized');
+
+    const roomType = accommodation.roomTypes.id(roomTypeId);
+    if (!roomType) return ResponseHandler.notFound(res, 'Room type not found');
+    if (availableRooms > roomType.totalRooms) {
+      return ResponseHandler.error(res, { statusCode: 400, message: 'Cannot exceed total rooms' });
+    }
+
+    roomType.availableRooms = Math.max(0, availableRooms);
+    await accommodation.save();
+    return ResponseHandler.success(res, { message: 'Updated!', data: accommodation });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
 
 // ──────────────────────────────────────────────
 // @desc    Get ALL pending listings (Admin)
@@ -286,122 +611,6 @@ export const approveAccommodation = async (req, res, next) => {
       message: 'Listing ' + action + 'd successfully!',
       data: accommodation,
     });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ──────────────────────────────────────────────
-// @desc    Update accommodation
-// @route   PUT /api/accommodations/:id
-// @access  Private (Owner)
-// ──────────────────────────────────────────────
-export const updateAccommodation = async (req, res, next) => {
-  try {
-    let accommodation = await Accommodation.findById(req.params.id);
-    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
-    if (accommodation.owner.toString() !== req.user.id && req.user.role !== 'admin') {
-      return ResponseHandler.forbidden(res, 'Not authorized');
-    }
-
-    if (req.body.pricing?.monthlyRent) req.body.price = req.body.pricing.monthlyRent;
-
-    accommodation = await Accommodation.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
-    return ResponseHandler.success(res, { message: 'Updated!', data: accommodation });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ──────────────────────────────────────────────
-// @desc    Delete accommodation
-// @route   DELETE /api/accommodations/:id
-// @access  Private (Owner/Admin)
-// ──────────────────────────────────────────────
-export const deleteAccommodation = async (req, res, next) => {
-  try {
-    const accommodation = await Accommodation.findById(req.params.id);
-    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
-    if (accommodation.owner.toString() !== req.user.id && req.user.role !== 'admin') {
-      return ResponseHandler.forbidden(res, 'Not authorized');
-    }
-
-    const activeBookings = await Booking.countDocuments({
-      accommodation: req.params.id,
-      status: { $in: ['Pending', 'Accepted', 'Active'] },
-    });
-    if (activeBookings > 0) {
-      return ResponseHandler.error(res, { statusCode: 400, message: activeBookings + ' active booking(s) exist.' });
-    }
-
-    await accommodation.deleteOne();
-    return ResponseHandler.success(res, { message: 'Deleted!' });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ──────────────────────────────────────────────
-// Toggle Availability
-// ──────────────────────────────────────────────
-export const toggleAvailability = async (req, res, next) => {
-  try {
-    const accommodation = await Accommodation.findById(req.params.id);
-    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
-    if (accommodation.owner.toString() !== req.user.id) return ResponseHandler.forbidden(res, 'Not authorized');
-
-    accommodation.isAvailable = !accommodation.isAvailable;
-    await accommodation.save();
-    return ResponseHandler.success(res, {
-      message: accommodation.isAvailable ? 'Available' : 'Not Available',
-      data: { isAvailable: accommodation.isAvailable },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ──────────────────────────────────────────────
-// Toggle Deactivate
-// ──────────────────────────────────────────────
-export const toggleDeactivate = async (req, res, next) => {
-  try {
-    const accommodation = await Accommodation.findById(req.params.id);
-    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
-    if (accommodation.owner.toString() !== req.user.id) return ResponseHandler.forbidden(res, 'Not authorized');
-
-    accommodation.isDeactivated = !accommodation.isDeactivated;
-    await accommodation.save();
-    return ResponseHandler.success(res, {
-      message: accommodation.isDeactivated ? 'Hidden' : 'Visible',
-      data: { isDeactivated: accommodation.isDeactivated },
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-// ──────────────────────────────────────────────
-// Update Room Availability
-// ──────────────────────────────────────────────
-export const updateRoomAvailability = async (req, res, next) => {
-  try {
-    const { id, roomTypeId } = req.params;
-    const { availableRooms } = req.body;
-
-    const accommodation = await Accommodation.findById(id);
-    if (!accommodation) return ResponseHandler.notFound(res, 'Not found');
-    if (accommodation.owner.toString() !== req.user.id) return ResponseHandler.forbidden(res, 'Not authorized');
-
-    const roomType = accommodation.roomTypes.id(roomTypeId);
-    if (!roomType) return ResponseHandler.notFound(res, 'Room type not found');
-    if (availableRooms > roomType.totalRooms) {
-      return ResponseHandler.error(res, { statusCode: 400, message: 'Cannot exceed total rooms' });
-    }
-
-    roomType.availableRooms = Math.max(0, availableRooms);
-    await accommodation.save();
-    return ResponseHandler.success(res, { message: 'Updated!', data: accommodation });
   } catch (error) {
     next(error);
   }

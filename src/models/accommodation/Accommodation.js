@@ -4,44 +4,44 @@ const roomTypeSchema = new mongoose.Schema({
   type: {
     type: String,
     enum: ['Single', 'Double', 'Shared', 'Studio'],
-    required: true,
+    // required: true,
   },
   capacity: { type: Number, default: 1 },
-  totalRooms: { type: Number, required: true },
-  availableRooms: { type: Number, required: true },
-  pricePerMonth: { type: Number, required: true },
+  totalRooms: { type: Number}, //, required: true 
+  availableRooms: { type: Number}, //""
+  pricePerMonth: { type: Number},  //""
 });
 
 const accommodationSchema = new mongoose.Schema(
   {
     title: {
       type: String,
-      required: [true, 'Title is required'],
+      // required: [true, 'Title is required'],
       trim: true,
       maxlength: 100,
     },
     description: {
       type: String,
-      required: [true, 'Description is required'],
+      // required: [true, 'Description is required'],
       maxlength: 3000,
     },
     type: {
       type: String,
       enum: ['Apartment', 'Room', 'Annex', 'Shared', 'House'],
-      required: true,
+      // required: true,
     },
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: true,
+      // required: true,
     },
 
     // LOCATION
     location: {
-      lat: { type: Number, required: true },
-      lng: { type: Number, required: true },
-      address: { type: String, required: true },
-      city: { type: String, required: true },
+      lat: { type: Number }, //, required: true
+      lng: { type: Number },  //""
+      address: { type: String }, //""
+      city: { type: String}, //""
       area: { type: String, default: '' },
     },
 
