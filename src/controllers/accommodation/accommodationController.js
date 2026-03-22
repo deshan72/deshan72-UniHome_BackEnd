@@ -54,11 +54,8 @@ const calcDistance = (lat1, lng1, lat2, lng2) => {
 
 export const createAccommodation = async (req, res) => {
   try {
-    // ❌ old (auth needed)
-    // const ownerId = req.user.id;
-
-    // ✅ temporary sample owner id (until auth is implemented)
-    const ownerId = 1; // DB එකේ තියෙන valid user id එකක් දාන්න
+    // temporary sample owner id (update as needed)
+    const ownerId = "69be914cd46f87a2a260d7d0";
 
     const {
       title,
@@ -70,16 +67,22 @@ export const createAccommodation = async (req, res) => {
       availableFrom
     } = req.body;
 
-    // basic validation
+    // validation
     if (!title || !address || !city || !pricePerMonth) {
       return res.status(400).json({
         message: "title, address, city, pricePerMonth are required",
       });
     }
 
-    // model/service call (ඔයාගේ existing logic එකට match කරගන්න)
+    // handle image upload
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = req.file.path; // local uploads/image-xxx.jpg
+    }
+
+    // create new accommodation
     const newAccommodation = await Accommodation.create({
-      ownerId,
+      owner: ownerId,
       title,
       description,
       address,
@@ -87,6 +90,7 @@ export const createAccommodation = async (req, res) => {
       pricePerMonth,
       roomType,
       availableFrom,
+      image: imageUrl, // add image field to your schema if not already present
     });
 
     return res.status(201).json({

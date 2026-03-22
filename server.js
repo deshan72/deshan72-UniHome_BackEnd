@@ -5,6 +5,7 @@ import app from "./src/index.js";  // Import 'app' from index.js
 
 
 import accommodationRoutes from './src/routes/accommodation/accommodationRoutes.js';
+import uploadRoutes from './src/routes/accommodation/uploadRoutes.js';
 
 
 
@@ -25,8 +26,14 @@ app.listen(PORT, () => {
 // ==================== ROUTES ====================
 // app.use('/api/auth', authRoutes);
 app.use('/api/accommodations', accommodationRoutes);
+app.use('/api/upload', uploadRoutes);
 // app.use('/api/bookings', bookingRoutes);
 // app.use('/api/reviews', reviewRoutes);
 // app.use('/api/messages', messageRoutes);
 // app.use('/api/users', userRoutes);
-// app.use('/api/upload', uploadRoutes);
+
+// ==================== START SERVER ====================
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
